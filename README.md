@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>P2P Secure Chat</title>
+    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiUDJQIFNlY3VyZSBDaGF0Iiwic2hvcnRfbmFtZSI6IlAyUENoYXQiLCJzdGFydF91cmwiOiIuIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiIzFhMWEyZSIsInRoZW1lX2NvbG9yIjoiIzFhMWEyZSJ9">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        :root { --primary: #e94560; --secondary: #0f3460; --dark: #1a1a2e; --light: #16213e; --accent: #00d9ff; --success: #00b894; --warning: #fdcb6e; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, var(--dark) 0%, var(--light) 100%); color: #fff; height: 100vh; overflow: hidden; -webkit-font-smoothing: antialiased; }
+        .top-bar { background: rgba(0,0,0,0.4); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--primary); position: fixed; top: 0; left: 0; right: 0; z-index: 100; height: 56px; backdrop-filter: blur(10px); }
+        .logo { font-size: 1.1rem; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; }
+        .status-bar { display: flex; gap: 8px; align-items: center; font-size: 0.75rem; }
+        .status-pill { padding: 4px 10px; border-radius: 16px; background: var(--secondary); display: flex; align-items: center; gap: 4px; font-weight: 500; }
+        .status-pill.online { background: rgba(0,185,148,0.2); color: var(--success); border: 1px solid var(--success); }
+        .status-pill.offline { background: rgba(233,69,96,0.2); color: var(--primary); border: 1px solid var(--primary); }
+        .status-pill.p2p-active { background: rgba(0,217,255,0.2); color: var(--accent); border: 1px solid var(--accent); }
+        .main-content { padding-top: 56px; height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 80px; }
+        .room-section { padding: 16px; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .room-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .room-header h2 { font-size: 0.85rem; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+        .room-id-box { background: rgba(255,255,255,0.05); padding: 14px; border-radius: 12px; font-family: 'SF Mono', monospace; font-size: 1.4rem; text-align: center; margin-bottom: 12px; border: 1.5px dashed var(--accent); color: var(--accent); cursor: pointer; transition: all 0.2s; font-weight: 600; letter-spacing: 2px; user-select: all; }
+        .room-id-box:active { transform: scale(0.98); background: rgba(0,217,255,0.1); }
+        .btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+        .btn { padding: 12px; border: none; border-radius: 10px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; -webkit-appearance: none; border: none; }
+        .btn:active { transform: scale(0.96); }
+        .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 4px 15px rgba(233,69,96,0.3); }
+        .btn-secondary { background: var(--secondary); color: #fff; }
+        .btn-full { grid-column: 1 / -1; }
+        .qr-container { margin-top: 12px; padding: 16px; background: #fff; border-radius: 12px; display: none; text-align: center; }
+        .qr-container canvas { max-width: 100% !important; height: auto !important; }
+        .peers-section { padding: 16px; }
+        .section-title { font-size: 0.75rem; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; font-weight: 600; }
+        .peer-card { padding: 14px; background: rgba(255,255,255,0.03); border-radius: 12px; margin-bottom: 10px; border: 2px solid transparent; transition: all 0.2s; cursor: pointer; }
+        .peer-card:active { transform: scale(0.98); }
+        .peer-card.active { border-color: var(--primary); background: rgba(233,69,96,0.08); }
+        .peer-card.connected { border-left: 3px solid var(--success); }
+        .peer-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .peer-name { font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
+        .peer-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 6px var(--success); display: inline-block; }
+        .peer-status-dot.connecting { background: var(--warning); box-shadow: 0 0 6px var(--warning); }
+        .peer-status-dot.offline { background: #e74c3c; box-shadow: 0 0 6px #e74c3c; }
+        .peer-meta { font-size: 0.75rem; color: #888; }
+        .peer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+        .peer-actions button { padding: 8px; border: none; border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .call-btn { background: rgba(0,185,148,0.2); color: var(--success); border: 1px solid var(--success) !important; }
+        .video-btn { background: rgba(15,52,96,0.5); color: var(--accent); border: 1px solid var(--accent) !important; }
+        .peer-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .chat-section { position: fixed; bottom: 0; left: 0; right: 0; background: var(--dark); border-top: 1px solid rgba(255,255,255,0.1); z-index: 90; max-height: 60vh; transition: transform 0.3s ease; }
+        .chat-section.collapsed { transform: translateY(calc(100% - 60px)); }
+        .chat-header { padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .chat-header h3 { font-size: 0.9rem; }
+        .chat-toggle { font-size: 1.2rem; transition: transform 0.3s; }
+        .chat-toggle.collapsed { transform: rotate(180deg); }
+        .messages-container { height: 35vh; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; -webkit-overflow-scrolling: touch; }
+        .message-bubble { max-width: 80%; padding: 10px 14px; border-radius: 16px; animation: msgIn 0.25s ease; word-wrap: break-word; font-size: 0.95rem; line-height: 1.4; }
+        @keyframes msgIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .message-bubble.me { align-self: flex-end; background: var(--primary); border-bottom-right-radius: 4px; }
+        .message-bubble.other { align-self: flex-start; background: var(--secondary); border-bottom-left-radius: 4px; }
+        .message-meta { font-size: 0.65rem; opacity: 0.7; margin-bottom: 3px; display: flex; justify-content: space-between; gap: 8px; }
+        .input-area { display: flex; gap: 8px; padding: 10px 16px 20px; align-items: center; }
+        .input-area input { flex: 1; padding: 12px 16px; border: none; border-radius: 24px; background: rgba(255,255,255,0.1); color: #fff; font-size: 1rem; outline: none; -webkit-appearance: none; }
+        .input-area input::placeholder { color: #888; }
+        .icon-btn { width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; background: var(--secondary); color: #fff; flex-shrink: 0; -webkit-appearance: none; }
+        .icon-btn:active { transform: scale(0.9); }
+        .send-btn { background: var(--primary) !important; }
+        .video-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.95); z-index: 1000; display: none; flex-direction: column; padding: 16px; }
+        .video-overlay.active { display: flex; }
+        .video-grid { flex: 1; display: grid; grid-template-rows: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+        .video-box { background: #000; border-radius: 12px; overflow: hidden; position: relative; border: 2px solid var(--secondary); }
+        .video-box video { width: 100%; height: 100%; object-fit: cover; }
+        .video-label { position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.7); padding: 4px 10px; border-radius: 10px; font-size: 0.75rem; }
+        .call-controls { display: flex; justify-content: center; gap: 20px; padding-bottom: 20px; }
+        .call-btn-big { width: 56px; height: 56px; border-radius: 50%; border: none; cursor: pointer; font-size: 1.4rem; display: flex; align-items: center; justify-content: center; }
+        .call-end { background: #e74c3c; color: #fff; }
+        .call-mute { background: #34495e; color: #fff; }
+        .call-video { background: #34495e; color: #fff; }
+        .modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 999; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .modal.active { display: flex; }
+        .modal-box { background: var(--light); padding: 24px; border-radius: 16px; width: 100%; max-width: 400px; border: 1px solid rgba(255,255,255,0.1); }
+        .modal-box h2 { margin-bottom: 16px; color: var(--accent); font-size: 1.2rem; }
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; margin-bottom: 6px; font-size: 0.85rem; color: #aaa; }
+        .form-group input { width: 100%; padding: 12px; border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; background: rgba(0,0,0,0.3); color: #fff; font-size: 1rem; -webkit-appearance: none; }
+        .empty-state { text-align: center; color: #666; padding: 40px 20px; }
+        .empty-state .icon { font-size: 3rem; margin-bottom: 12px; opacity: 0.5; }
+        .toast { position: fixed; top: 70px; left: 50%; transform: translateX(-50%) translateY(-100px); background: var(--secondary); color: #fff; padding: 12px 20px; border-radius: 10px; z-index: 2000; transition: transform 0.3s ease; border: 1px solid var(--accent); font-size: 0.9rem; font-weight: 500; white-space: nowrap; }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+        .install-banner { position: fixed; bottom: 0; left: 0; right: 0; background: var(--secondary); padding: 16px; display: none; align-items: center; justify-content: space-between; z-index: 95; border-top: 1px solid var(--accent); }
+        .install-banner.active { display: flex; }
+        .install-btn { background: var(--primary); color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+        .server-panel { padding: 16px; background: rgba(0,185,148,0.1); border: 1px solid var(--success); border-radius: 12px; margin: 16px; }
+        .server-panel h3 { color: var(--success); margin-bottom: 8px; font-size: 0.9rem; }
+        .server-url { font-family: monospace; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; font-size: 0.85rem; word-break: break-all; margin-bottom: 10px; }
+        .server-toggle { display: flex; align-items: center; gap: 10px; }
+        .switch { position: relative; width: 50px; height: 28px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #555; border-radius: 28px; transition: 0.3s; }
+        .slider:before { position: absolute; content: ""; height: 22px; width: 22px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.3s; }
+        input:checked + .slider { background: var(--success); }
+        input:checked + .slider:before { transform: translateX(22px); }
+        .connection-method { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 16px; }
+        .method-btn { padding: 12px; border: 2px solid var(--secondary); border-radius: 10px; background: transparent; color: #fff; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.2s; }
+        .method-btn.active { border-color: var(--accent); background: rgba(0,217,255,0.1); }
+        .method-btn:active { transform: scale(0.98); }
+        @media (min-width: 768px) { .main-content { max-width: 600px; margin: 0 auto; } .chat-section { max-width: 600px; left: 50%; transform: translateX(-50%); } .chat-section.collapsed { transform: translateX(-50%) translateY(calc(100% - 60px)); } }
+    </style>
+</head>
+<body>
+
+    <div class="top-bar">
+        <div class="logo">🔐 P2P Secure</div>
+        <div class="status-bar">
+            <div id="netStatus" class="status-pill offline"><span>🌐</span> <span id="netText">غير متصل</span></div>
+            <div id="p2pStatus" class="status-pill offline"><span>🔗</span> <span id="p2pText">P2P</span></div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        
+        <div class="connection-method">
+            <button class="method-btn active" id="methodLocal" onclick="setMethod('local')">📡 محلي (نفس الجهاز)</button>
+            <button class="method-btn" id="methodWebRTC" onclick="setMethod('webrtc')">🌐 WebRTC (أجهزة مختلفة)</button>
+        </div>
+
+        <div class="server-panel" id="serverPanel" style="display:none;">
+            <h3>📡 خادم WebSocket</h3>
+            <div class="server-url" id="serverUrl">غير نشط</div>
+            <div class="server-toggle">
+                <label class="switch">
+                    <input type="checkbox" id="serverToggle" onchange="toggleServer()">
+                    <span class="slider"></span>
+                </label>
+                <span id="serverLabel">تشغيل الخادم</span>
+            </div>
+        </div>
+
+        <div class="room-section">
+            <div class="room-header">
+                <h2>🔑 الغرفة الحالية</h2>
+            </div>
+            <div id="roomIdDisplay" class="room-id-box" onclick="copyRoomId()">جاري الإنشاء...</div>
+            <div class="btn-grid">
+                <button class="btn btn-secondary" onclick="createNewRoom()">🆕 جديدة</button>
+                <button class="btn btn-secondary" onclick="toggleQR()">📱 QR</button>
+                <button class="btn btn-secondary btn-full" onclick="showJoinModal()">🔗 انضمام لغرفة</button>
+            </div>
+            <div id="qrContainer" class="qr-container"></div>
+        </div>
+
+        <div class="peers-section" id="peersSection">
+            <div class="section-title">👥 الأجهزة المكتشفة</div>
+            <div id="peersList">
+                <div class="empty-state">
+                    <div class="icon">📡</div>
+                    <div>اختر طريقة الاتصال وشغّل الخادم</div>
+                    <div style="font-size:0.75rem; color:#666; margin-top:8px;">
+                        📡 محلي: نفس الجهاز (تبويبات مختلفة)<br>
+                        🌐 WebRTC: أجهزة مختلفة عبر الإنترنت
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-section collapsed" id="chatSection">
+        <div class="chat-header" onclick="toggleChat()">
+            <h3 id="chatTitle">💬 اضغط للفتح</h3>
+            <span class="chat-toggle collapsed" id="chatToggle">▼</span>
+        </div>
+        <div id="messagesContainer" class="messages-container"></div>
+        <div class="input-area">
+            <input type="file" id="fileInput" style="display:none;" onchange="sendFile()" accept="image/*,video/*,.pdf,.txt">
+            <button class="icon-btn" onclick="document.getElementById('fileInput').click()">📎</button>
+            <input type="text" id="msgInput" placeholder="رسالة..." onkeypress="if(event.key==='Enter') sendMessage()" disabled>
+            <button class="icon-btn send-btn" onclick="sendMessage()" id="sendBtn" disabled>📤</button>
+        </div>
+    </div>
+
+    <div id="videoOverlay" class="video-overlay">
+        <div class="video-grid">
+            <div class="video-box">
+                <video id="localVideo" autoplay muted playsinline></video>
+                <div class="video-label">أنت</div>
+            </div>
+            <div class="video-box" id="remoteVideoBox" style="display:none;">
+                <video id="remoteVideo" autoplay playsinline></video>
+                <div class="video-label">الطرف الآخر</div>
+            </div>
+        </div>
+        <div class="call-controls">
+            <button class="call-btn-big call-mute" onclick="toggleMute()" id="muteBtn">🎙️</button>
+            <button class="call-btn-big call-end" onclick="endCall()">📞</button>
+            <button class="call-btn-big call-video" onclick="toggleVideo()" id="toggleVideoBtn">📹</button>
+        </div>
+    </div>
+
+    <div id="joinModal" class="modal">
+        <div class="modal-box">
+            <h2>🔗 انضمام لغرفة</h2>
+            <div class="form-group">
+                <label>معرف الغرفة</label>
+                <input type="text" id="joinRoomInput" placeholder="A1B2C3D4">
+            </div>
+            <button class="btn btn-primary btn-full" onclick="joinRoom()">انضمام</button>
+            <button class="btn btn-secondary btn-full" onclick="closeJoinModal()" style="margin-top:8px;">إلغاء</button>
+        </div>
+    </div>
+
+    <div class="install-banner" id="installBanner">
+        <span>📲 ثبّت التطبيق على الشاشة الرئيسية</span>
+        <button class="install-btn" onclick="installPWA()">تثبيت</button>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        const CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+        let myId = null, currentRoom = null, currentPeer = null, cryptoKey = null;
+        let peers = {}, dataChannels = {}, localStream = null;
+        let ws = null, serverRunning = false, connectionMethod = 'local';
+        let isMuted = false, isVideoOff = false;
+        let bc = null;
+
+        async function deriveKey(roomId) {
+            const encoder = new TextEncoder();
+            const keyMaterial = await crypto.subtle.importKey('raw', encoder.encode(roomId + 'p2p-salt-2026'), { name: 'PBKDF2' }, false, ['deriveKey']);
+            return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: encoder.encode('salt'), iterations: 100000, hash: 'SHA-256' }, keyMaterial, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+        }
+
+        async function encrypt(text) {
+            if (!cryptoKey) return text;
+            const iv = crypto.getRandomValues(new Uint8Array(12));
+            const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, new TextEncoder().encode(text));
+            const combined = new Uint8Array(iv.length + encrypted.byteLength);
+            combined.set(iv); combined.set(new Uint8Array(encrypted), iv.length);
+            return btoa(String.fromCharCode(...combined));
+        }
+
+        async function decrypt(ciphertext) {
+            if (!cryptoKey) return ciphertext;
+            try {
+                const data = Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0));
+                const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: data.slice(0, 12) }, cryptoKey, data.slice(12));
+                return new TextDecoder().decode(decrypted);
+            } catch (e) { return '[تعذر فك التشفير]'; }
+        }
+
+        async function init() {
+            const urlParams = new URLSearchParams(window.location.search);
+            let roomId = urlParams.get('room');
+            if (!roomId) {
+                roomId = Math.random().toString(36).substring(2, 10).toUpperCase();
+                window.history.replaceState({}, '', `?room=${roomId}`);
+            }
+            currentRoom = roomId;
+            document.getElementById('roomIdDisplay').textContent = roomId;
+            cryptoKey = await deriveKey(roomId);
+            
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('data:text/javascript;base64,' + btoa(`self.addEventListener('install',e=>self.skipWaiting());self.addEventListener('fetch',e=>e.respondWith(fetch(e.request).catch(()=>new Response('Offline'))));`)).catch(()=>{});
+            }
+            
+            window.addEventListener('beforeinstallprompt', e => {
+                e.preventDefault();
+                window.deferredPrompt = e;
+                document.getElementById('installBanner').classList.add('active');
+            });
+
+            setupLocalConnection();
+        }
+
+        function setMethod(method) {
+            connectionMethod = method;
+            document.getElementById('methodLocal').classList.toggle('active', method === 'local');
+            document.getElementById('methodWebRTC').classList.toggle('active', method === 'webrtc');
+            document.getElementById('serverPanel').style.display = method === 'webrtc' ? 'block' : 'none';
+            
+            if (method === 'local') {
+                setupLocalConnection();
+            }
+        }
+
+        function setupLocalConnection() {
+            try {
+                bc = new BroadcastChannel('p2p_secure_' + currentRoom);
+                bc.onmessage = async (event) => {
+                    const data = event.data;
+                    if (data.type === 'signal' && data.target === myId) {
+                        await handleSignal(data.from, data.signalType, data.signal);
+                    } else if (data.type === 'peer-joined' && data.from !== myId) {
+                        if (!peers[data.from]) initiateConnection(data.from, true);
+                    }
+                };
+                myId = Math.random().toString(36).substring(2, 15);
+                document.getElementById('netStatus').className = 'status-pill online';
+                document.getElementById('netText').textContent = 'محلي';
+                showToast('✅ وضع محلي نشط - افتح تبويب آخر');
+            } catch (e) {
+                showToast('⚠️ المتصفح لا يدعم BroadcastChannel');
+            }
+        }
+
+        function broadcast(data) {
+            if (bc) bc.postMessage({ ...data, from: myId });
+        }
+
+        async function initiateConnection(peerId, useBroadcast = false) {
+            const pc = new RTCPeerConnection({ iceServers: CONFIG.iceServers });
+            peers[peerId] = pc;
+            
+            const channel = pc.createDataChannel('chat', { ordered: true });
+            setupDataChannel(peerId, channel);
+            
+            pc.onicecandidate = (event) => {
+                if (event.candidate) {
+                    if (useBroadcast) {
+                        broadcast({ type: 'signal', target: peerId, signalType: 'ice', signal: event.candidate });
+                    } else if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'signal', room: currentRoom, target: peerId, signal_type: 'ice', signal: event.candidate }));
+                    }
+                }
+            };
+            
+            pc.ontrack = (event) => {
+                const rv = document.getElementById('remoteVideo');
+                if (rv.srcObject !== event.streams[0]) {
+                    rv.srcObject = event.streams[0];
+                    document.getElementById('remoteVideoBox').style.display = 'block';
+                }
+            };
+            
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            
+            if (useBroadcast) {
+                broadcast({ type: 'signal', target: peerId, signalType: 'offer', signal: offer });
+            } else if (ws) {
+                ws.send(JSON.stringify({ type: 'signal', room: currentRoom, target: peerId, signal_type: 'offer', signal: offer }));
+            }
+        }
+
+        async function handleSignal(from, signalType, signal) {
+            if (!peers[from]) {
+                peers[from] = new RTCPeerConnection({ iceServers: CONFIG.iceServers });
+                const pc = peers[from];
+                pc.ondatachannel = (e) => setupDataChannel(from, e.channel);
+                pc.ontrack = (event) => {
+                    const rv = document.getElementById('remoteVideo');
+                    if (rv.srcObject !== event.streams[0]) {
+                        rv.srcObject = event.streams[0];
+                        document.getElementById('remoteVideoBox').style.display = 'block';
+                    }
+                };
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) broadcast({ type: 'signal', target: from, signalType: 'ice', signal: event.candidate });
+                };
+            }
+            
+            const pc = peers[from];
+            if (signalType === 'offer') {
+                await pc.setRemoteDescription(new RTCSessionDescription(signal));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                broadcast({ type: 'signal', target: from, signalType: 'answer', signal: answer });
+            } else if (signalType === 'answer') {
+                await pc.setRemoteDescription(new RTCSessionDescription(signal));
+            } else if (signalType === 'ice') {
+                await pc.addIceCandidate(new RTCIceCandidate(signal));
+            }
+        }
+
+        function setupDataChannel(peerId, channel) {
+            if (!dataChannels[peerId]) dataChannels[peerId] = {};
+            dataChannels[peerId].chat = channel;
+            
+            channel.onopen = () => {
+                updatePeerStatus(peerId, 'connected');
+                renderPeersList();
+                if (!currentPeer) selectPeer(peerId);
+            };
+            
+            channel.onmessage = async (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'message') {
+                    const decrypted = await decrypt(data.content);
+                    displayMessage(decrypted, false, data.timestamp, peerId);
+                } else if (data.type === 'file') {
+                    displayFile(data, false, peerId);
+                }
+            };
+            
+            channel.onclose = () => updatePeerStatus(peerId, 'disconnected');
+        }
+
+        function updatePeerStatus(peerId, state) {
+            if (state === 'connected') {
+                document.getElementById('p2pStatus').className = 'status-pill p2p-active';
+                document.getElementById('p2pText').textContent = 'P2P نشط';
+            }
+            renderPeersList();
+        }
+
+        function renderPeersList() {
+            const list = document.getElementById('peersList');
+            const peerIds = Object.keys(dataChannels).filter(id => {
+                const ch = dataChannels[id]?.chat;
+                return ch && (ch.readyState === 'open' || ch.readyState === 'connecting');
+            });
+            
+            if (peerIds.length === 0) {
+                list.innerHTML = `<div class="empty-state"><div class="icon">📡</div><div>لا يوجد أجهزة متصلة</div><div style="font-size:0.75rem; color:#666; margin-top:8px;">${connectionMethod === 'local' ? 'افتح التطبيق في تبويب آخر بنفس الغرفة' : 'شغّل الخادم وانتظر الاتصال'}</div></div>`;
+                return;
+            }
+            
+            list.innerHTML = peerIds.map(id => {
+                const isActive = currentPeer === id;
+                const ch = dataChannels[id]?.chat;
+                const isConnected = ch?.readyState === 'open';
+                return `<div class="peer-card ${isActive ? 'active' : ''} ${isConnected ? 'connected' : ''}" onclick="selectPeer('${id}')">
+                    <div class="peer-header">
+                        <div class="peer-name"><span class="peer-status-dot ${isConnected ? '' : 'connecting'}"></span> 👤 ${id.substring(0, 10)}</div>
+                    </div>
+                    <div class="peer-meta">${isConnected ? '🔒 P2P متصل' : '⏳ يتصل...'}</div>
+                    <div class="peer-actions">
+                        <button class="call-btn" onclick="event.stopPropagation(); startAudioCall('${id}')" ${!isConnected ? 'disabled' : ''}>🎙️ صوت</button>
+                        <button class="video-btn" onclick="event.stopPropagation(); startVideoCall('${id}')" ${!isConnected ? 'disabled' : ''}>📹 فيديو</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function selectPeer(peerId) {
+            currentPeer = peerId;
+            renderPeersList();
+            const hasConn = dataChannels[peerId]?.chat?.readyState === 'open';
+            document.getElementById('sendBtn').disabled = !hasConn;
+            document.getElementById('msgInput').disabled = !hasConn;
+            document.getElementById('chatTitle').textContent = `💬 ${peerId.substring(0, 10)}`;
+            document.getElementById('chatSection').classList.remove('collapsed');
+            document.getElementById('chatToggle').classList.remove('collapsed');
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('msgInput');
+            const text = input.value.trim();
+            if (!text || !currentPeer || !dataChannels[currentPeer]?.chat) return;
+            
+            const encrypted = await encrypt(text);
+            const timestamp = new Date().toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'});
+            
+            dataChannels[currentPeer].chat.send(JSON.stringify({
+                type: 'message',
+                content: encrypted,
+                timestamp
+            }));
+            
+            displayMessage(text, true, timestamp);
+            input.value = '';
+        }
+
+        function displayMessage(text, isMe, time, fromId = null) {
+            const container = document.getElementById('messagesContainer');
+            const div = document.createElement('div');
+            div.className = `message-bubble ${isMe ? 'me' : 'other'}`;
+            div.innerHTML = `<div class="message-meta"><span>${isMe ? 'أنت' : (fromId ? fromId.substring(0, 8) : 'الطرف')}</span><span>${time}</span></div><div>${escapeHtml(text)}</div>`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function sendFile() {
+            const input = document.getElementById('fileInput');
+            const file = input.files[0];
+            if (!file || !currentPeer) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const payload = {
+                    type: 'file',
+                    filename: file.name,
+                    size: file.size,
+                    mimeType: file.type,
+                    content: e.target.result,
+                    timestamp: new Date().toLocaleTimeString('ar-SA', {hour:'2-digit', minute:'2-digit'})
+                };
+                dataChannels[currentPeer].chat.send(JSON.stringify(payload));
+                displayFile(payload, true);
+            };
+            reader.readAsDataURL(file);
+            input.value = '';
+        }
+
+        function displayFile(data, isMe, fromId = null) {
+            const container = document.getElementById('messagesContainer');
+            let content = '';
+            if (data.mimeType?.startsWith('image/')) {
+                content = `<img src="${data.content}" style="max-width:150px; border-radius:8px;" onclick="window.open('${data.content}')">`;
+            } else {
+                content = `<div style="display:flex;align-items:center;gap:8px;padding:8px;background:rgba(255,255,255,0.1);border-radius:8px;"><span>📄</span><span style="font-size:0.8rem;">${escapeHtml(data.filename)}</span><a href="${data.content}" download style="color:var(--accent);">⬇️</a></div>`;
+            }
+            const div = document.createElement('div');
+            div.className = `message-bubble ${isMe ? 'me' : 'other'}`;
+            div.innerHTML = `<div class="message-meta"><span>${isMe ? 'أنت' : 'الطرف'}</span><span>${data.timestamp}</span></div><div>${content}</div>`;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function startAudioCall(peerId) { await startMedia(peerId, false); }
+        async function startVideoCall(peerId) { await startMedia(peerId, true); }
+
+        async function startMedia(peerId, withVideo) {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: withVideo });
+                document.getElementById('localVideo').srcObject = localStream;
+                document.getElementById('videoOverlay').classList.add('active');
+                
+                const pc = peers[peerId];
+                if (pc && localStream) {
+                    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+                }
+            } catch (err) {
+                showToast('❌ لا يمكن الوصول للكاميرا');
+            }
+        }
+
+        function endCall() {
+            if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+            document.getElementById('videoOverlay').classList.remove('active');
+            document.getElementById('remoteVideoBox').style.display = 'none';
+        }
+
+        function toggleMute() {
+            if (!localStream) return;
+            const t = localStream.getAudioTracks()[0];
+            if (t) { t.enabled = !t.enabled; isMuted = !t.enabled; document.getElementById('muteBtn').textContent = isMuted ? '🔇' : '🎙️'; }
+        }
+
+        function toggleVideo() {
+            if (!localStream) return;
+            const t = localStream.getVideoTracks()[0];
+            if (t) { t.enabled = !t.enabled; isVideoOff = !t.enabled; document.getElementById('toggleVideoBtn').textContent = isVideoOff ? '📵' : '📹'; }
+        }
+
+        function createNewRoom() {
+            const newRoom = Math.random().toString(36).substring(2, 10).toUpperCase();
+            window.location.href = `?room=${newRoom}`;
+        }
+
+        function toggleQR() {
+            const c = document.getElementById('qrContainer');
+            if (c.style.display === 'block') { c.style.display = 'none'; return; }
+            c.innerHTML = ''; c.style.display = 'block';
+            
+            const url = `${window.location.origin}${window.location.pathname}?room=${currentRoom}`;
+            
+            if (typeof QRCode !== 'undefined') {
+                new QRCode(c, {
+                    text: url,
+                    width: 200,
+                    height: 200,
+                    colorDark: '#1a1a2e',
+                    colorLight: '#ffffff',
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+            } else {
+                const canvas = document.createElement('canvas');
+                canvas.width = 200; canvas.height = 200;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#fff'; ctx.fillRect(0,0,200,200);
+                ctx.fillStyle = '#1a1a2e'; ctx.font = 'bold 16px monospace';
+                ctx.fillText('ROOM:', 20, 80);
+                ctx.font = 'bold 24px monospace';
+                ctx.fillText(currentRoom, 20, 120);
+                c.appendChild(canvas);
+            }
+            
+            const link = document.createElement('div');
+            link.style.cssText = 'margin-top:10px;font-size:0.8rem;color:#333;word-break:break-all;';
+            link.textContent = url;
+            c.appendChild(link);
+        }
+
+        function showJoinModal() { document.getElementById('joinModal').classList.add('active'); }
+        function closeJoinModal() { document.getElementById('joinModal').classList.remove('active'); }
+        
+        async function joinRoom() {
+            const roomId = document.getElementById('joinRoomInput').value.trim().toUpperCase();
+            if (!roomId) { showToast('❌ أدخل معرف الغرفة'); return; }
+            cryptoKey = await deriveKey(roomId);
+            window.location.href = `?room=${roomId}`;
+        }
+
+        function copyRoomId() {
+            navigator.clipboard.writeText(currentRoom).then(() => showToast('✅ تم النسخ'));
+        }
+
+        function toggleChat() {
+            document.getElementById('chatSection').classList.toggle('collapsed');
+            document.getElementById('chatToggle').classList.toggle('collapsed');
+        }
+
+        function showToast(m) {
+            const t = document.getElementById('toast');
+            t.textContent = m;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        function escapeHtml(t) {
+            const d = document.createElement('div');
+            d.textContent = t;
+            return d.innerHTML;
+        }
+
+        function installPWA() {
+            if (window.deferredPrompt) {
+                window.deferredPrompt.prompt();
+                window.deferredPrompt.userChoice.then(() => {
+                    document.getElementById('installBanner').classList.remove('active');
+                });
+            }
+        }
+
+        init();
+        setInterval(renderPeersList, 2000);
+    </script>
+</body>
+</html>
